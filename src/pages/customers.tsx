@@ -1,83 +1,16 @@
+import { useState } from 'react';
 import { MainLayout } from "@/components/layout/main-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Plus, Search, Filter, Building, User, Phone, Mail } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Plus, Search, Filter, Building, User, Phone, Mail, Edit, Eye, Trash2 } from "lucide-react";
+import { useCustomers, Customer } from '@/hooks/use-customers';
+import { CustomerForm } from '@/components/customers/customer-form';
 
-interface Customer {
-  id: string;
-  name: string;
-  email: string;
-  phone: string;
-  type: "individual" | "corporate";
-  status: "active" | "inactive" | "vip";
-  totalBookings: number;
-  lastBooking: string;
-  preferences?: {
-    vehicleType?: string;
-    specialRequests?: string[];
-  };
-  contacts?: {
-    primary: string;
-    secondary?: string;
-  };
-}
-
-const mockCustomers: Customer[] = [
-  {
-    id: "CU001",
-    name: "John Smith",
-    email: "john.smith@email.com",
-    phone: "+1 (555) 123-4567",
-    type: "individual",
-    status: "vip",
-    totalBookings: 45,
-    lastBooking: "2024-01-25",
-    preferences: {
-      vehicleType: "Luxury Sedan",
-      specialRequests: ["Child seat", "Water bottles"]
-    },
-    contacts: {
-      primary: "John Smith",
-      secondary: "Jane Smith (spouse)"
-    }
-  },
-  {
-    id: "CU002",
-    name: "Tech Corp Inc.",
-    email: "bookings@techcorp.com",
-    phone: "+1 (555) 987-6543",
-    type: "corporate",
-    status: "active",
-    totalBookings: 128,
-    lastBooking: "2024-01-24",
-    preferences: {
-      vehicleType: "Executive Fleet",
-      specialRequests: ["Invoice to accounting", "Multiple stops"]
-    },
-    contacts: {
-      primary: "Sarah Johnson (Travel Manager)",
-      secondary: "Mike Davis (Assistant)"
-    }
-  },
-  {
-    id: "CU003",
-    name: "Emma Wilson",
-    email: "emma.wilson@email.com",
-    phone: "+1 (555) 456-7890",
-    type: "individual",
-    status: "active",
-    totalBookings: 12,
-    lastBooking: "2024-01-20",
-    preferences: {
-      vehicleType: "Standard Sedan"
-    },
-    contacts: {
-      primary: "Emma Wilson"
-    }
-  }
-];
 
 const statusColors = {
   active: "bg-success text-success-foreground",
@@ -86,6 +19,60 @@ const statusColors = {
 };
 
 export function CustomersPage() {
+  const { customers, createCustomer, updateCustomer, deleteCustomer, filterCustomers } = useCustomers();
+  const [searchTerm, setSearchTerm] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [customerToDelete, setCustomerToDelete] = useState<string | null>(null);
+
+  const filteredCustomers = filterCustomers({
+    search: searchTerm,
+    type: typeFilter || undefined,
+    status: statusFilter || undefined,
+  });
+
+  const customerStats = {
+    total: customers.length,
+    corporate: customers.filter(c => c.type === 'corporate').length,
+    vip: customers.filter(c => c.status === 'vip').length,
+    retention: 95 // This would be calculated from actual data
+  };
+
+  const handleEdit = (customer: Customer) => {
+    setSelectedCustomer(customer);
+    setIsFormOpen(true);
+  };
+
+  const handleDelete = (customerId: string) => {
+    setCustomerToDelete(customerId);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = () => {
+    if (customerToDelete) {
+      deleteCustomer(customerToDelete);
+      setCustomerToDelete(null);
+      setDeleteDialogOpen(false);
+    }
+  };
+
+  const handleFormSubmit = (customerData: Omit<Customer, 'id' | 'totalBookings' | 'lastBooking'>) => {
+    if (selectedCustomer) {
+      updateCustomer(selectedCustomer.id, customerData);
+    } else {
+      createCustomer(customerData);
+    }
+    setIsFormOpen(false);
+    setSelectedCustomer(null);
+  };
+
+  const handleFormCancel = () => {
+    setIsFormOpen(false);
+    setSelectedCustomer(null);
+  };
   return (
     <MainLayout title="Customer Management">
       <div className="space-y-6">
@@ -94,14 +81,36 @@ export function CustomersPage() {
           <div className="flex gap-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input placeholder="Search customers..." className="pl-10 w-80" />
+              <Input 
+                placeholder="Search customers..." 
+                className="pl-10 w-80" 
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
             </div>
-            <Button variant="outline">
-              <Filter className="w-4 h-4 mr-2" />
-              Filter
-            </Button>
+            <Select value={typeFilter} onValueChange={setTypeFilter}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="Filter by type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">All Types</SelectItem>
+                <SelectItem value="individual">Individual</SelectItem>
+                <SelectItem value="corporate">Corporate</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="Filter by status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">All Status</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="inactive">Inactive</SelectItem>
+                <SelectItem value="vip">VIP</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-          <Button>
+          <Button onClick={() => setIsFormOpen(true)}>
             <Plus className="w-4 h-4 mr-2" />
             Add Customer
           </Button>
@@ -111,25 +120,25 @@ export function CustomersPage() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card>
             <CardContent className="p-4">
-              <div className="text-2xl font-bold">1,284</div>
+              <div className="text-2xl font-bold">{customerStats.total}</div>
               <p className="text-sm text-muted-foreground">Total Customers</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4">
-              <div className="text-2xl font-bold">156</div>
+              <div className="text-2xl font-bold">{customerStats.corporate}</div>
               <p className="text-sm text-muted-foreground">Corporate Accounts</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4">
-              <div className="text-2xl font-bold">89</div>
+              <div className="text-2xl font-bold">{customerStats.vip}</div>
               <p className="text-sm text-muted-foreground">VIP Customers</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4">
-              <div className="text-2xl font-bold">95%</div>
+              <div className="text-2xl font-bold">{customerStats.retention}%</div>
               <p className="text-sm text-muted-foreground">Customer Retention</p>
             </CardContent>
           </Card>
@@ -137,7 +146,7 @@ export function CustomersPage() {
 
         {/* Customers List */}
         <div className="space-y-4">
-          {mockCustomers.map((customer) => (
+          {filteredCustomers.map((customer) => (
             <Card key={customer.id} className="hover:shadow-md transition-shadow">
               <CardHeader>
                 <div className="flex justify-between items-start">
@@ -200,9 +209,18 @@ export function CustomersPage() {
 
                   {/* Actions */}
                   <div className="flex gap-2 md:justify-end">
-                    <Button variant="outline" size="sm">View Profile</Button>
-                    <Button variant="outline" size="sm">New Booking</Button>
-                    <Button variant="outline" size="sm">Edit</Button>
+                    <Button variant="outline" size="sm">
+                      <Eye className="w-4 h-4 mr-1" />
+                      View
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => handleEdit(customer)}>
+                      <Edit className="w-4 h-4 mr-1" />
+                      Edit
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => handleDelete(customer.id)}>
+                      <Trash2 className="w-4 h-4 mr-1" />
+                      Delete
+                    </Button>
                   </div>
                 </div>
 
@@ -222,6 +240,38 @@ export function CustomersPage() {
             </Card>
           ))}
         </div>
+
+        {/* Create/Edit Customer Dialog */}
+        <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>
+                {selectedCustomer ? 'Edit Customer' : 'Create New Customer'}
+              </DialogTitle>
+            </DialogHeader>
+            <CustomerForm
+              customer={selectedCustomer || undefined}
+              onSubmit={handleFormSubmit}
+              onCancel={handleFormCancel}
+            />
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete Confirmation Dialog */}
+        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This action cannot be undone. This will permanently delete the customer and all associated data.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={confirmDelete}>Delete</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </MainLayout>
   );

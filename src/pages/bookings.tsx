@@ -1,109 +1,16 @@
+import { useState } from 'react';
 import { MainLayout } from "@/components/layout/main-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Plus, Search, Filter, Calendar, MapPin, User, Car } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Plus, Search, Filter, Calendar, MapPin, User, Car, Edit, Eye, Trash2 } from "lucide-react";
+import { useBookings, Booking } from '@/hooks/use-bookings';
+import { BookingForm } from '@/components/bookings/booking-form';
 
-interface Booking {
-  id: string;
-  customer: string;
-  pickup: string;
-  destination: string;
-  date: string;
-  time: string;
-  status: "confirmed" | "in-progress" | "completed" | "cancelled";
-  driver?: string;
-  vehicle?: string;
-  legs: BookingLeg[];
-  totalAmount: number;
-}
-
-interface BookingLeg {
-  id: string;
-  sequence: number;
-  pickup: string;
-  destination: string;
-  estimatedDuration: string;
-  status: "pending" | "active" | "completed";
-}
-
-const mockBookings: Booking[] = [
-  {
-    id: "BK001",
-    customer: "John Smith",
-    pickup: "JFK Airport",
-    destination: "Manhattan Hotel",
-    date: "2024-01-26",
-    time: "14:30",
-    status: "confirmed",
-    driver: "Michael Johnson",
-    vehicle: "Mercedes S-Class",
-    totalAmount: 250,
-    legs: [
-      {
-        id: "L001",
-        sequence: 1,
-        pickup: "JFK Airport Terminal 1",
-        destination: "Manhattan Hotel",
-        estimatedDuration: "45 min",
-        status: "pending"
-      }
-    ]
-  },
-  {
-    id: "BK002",
-    customer: "Sarah Davis",
-    pickup: "Corporate Office",
-    destination: "LaGuardia Airport",
-    date: "2024-01-26",
-    time: "16:00",
-    status: "in-progress",
-    driver: "David Wilson",
-    vehicle: "BMW 7 Series",
-    totalAmount: 180,
-    legs: [
-      {
-        id: "L002",
-        sequence: 1,
-        pickup: "Corporate Office Downtown",
-        destination: "LaGuardia Airport",
-        estimatedDuration: "35 min",
-        status: "active"
-      }
-    ]
-  },
-  {
-    id: "BK003",
-    customer: "Tech Corp Inc.",
-    pickup: "Conference Center",
-    destination: "Multiple stops",
-    date: "2024-01-25",
-    time: "18:45",
-    status: "completed",
-    driver: "Robert Brown",
-    vehicle: "Mercedes Sprinter",
-    totalAmount: 450,
-    legs: [
-      {
-        id: "L003",
-        sequence: 1,
-        pickup: "Conference Center",
-        destination: "Restaurant Downtown",
-        estimatedDuration: "20 min",
-        status: "completed"
-      },
-      {
-        id: "L004",
-        sequence: 2,
-        pickup: "Restaurant Downtown", 
-        destination: "Hotel Uptown",
-        estimatedDuration: "30 min",
-        status: "completed"
-      }
-    ]
-  }
-];
 
 const statusColors = {
   confirmed: "bg-accent text-accent-foreground",
@@ -113,6 +20,51 @@ const statusColors = {
 };
 
 export function BookingsPage() {
+  const { bookings, createBooking, updateBooking, deleteBooking, filterBookings } = useBookings();
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [bookingToDelete, setBookingToDelete] = useState<string | null>(null);
+
+  const filteredBookings = filterBookings({
+    search: searchTerm,
+    status: statusFilter || undefined,
+  });
+
+  const handleEdit = (booking: Booking) => {
+    setSelectedBooking(booking);
+    setIsFormOpen(true);
+  };
+
+  const handleDelete = (bookingId: string) => {
+    setBookingToDelete(bookingId);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = () => {
+    if (bookingToDelete) {
+      deleteBooking(bookingToDelete);
+      setBookingToDelete(null);
+      setDeleteDialogOpen(false);
+    }
+  };
+
+  const handleFormSubmit = (bookingData: Omit<Booking, 'id'>) => {
+    if (selectedBooking) {
+      updateBooking(selectedBooking.id, bookingData);
+    } else {
+      createBooking(bookingData);
+    }
+    setIsFormOpen(false);
+    setSelectedBooking(null);
+  };
+
+  const handleFormCancel = () => {
+    setIsFormOpen(false);
+    setSelectedBooking(null);
+  };
   return (
     <MainLayout title="Bookings Management">
       <div className="space-y-6">
@@ -121,14 +73,27 @@ export function BookingsPage() {
           <div className="flex gap-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input placeholder="Search bookings..." className="pl-10 w-80" />
+              <Input 
+                placeholder="Search bookings..." 
+                className="pl-10 w-80" 
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
             </div>
-            <Button variant="outline">
-              <Filter className="w-4 h-4 mr-2" />
-              Filter
-            </Button>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="Filter by status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">All Status</SelectItem>
+                <SelectItem value="confirmed">Confirmed</SelectItem>
+                <SelectItem value="in-progress">In Progress</SelectItem>
+                <SelectItem value="completed">Completed</SelectItem>
+                <SelectItem value="cancelled">Cancelled</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-          <Button>
+          <Button onClick={() => setIsFormOpen(true)}>
             <Plus className="w-4 h-4 mr-2" />
             New Booking
           </Button>
@@ -136,7 +101,7 @@ export function BookingsPage() {
 
         {/* Bookings List */}
         <div className="space-y-4">
-          {mockBookings.map((booking) => (
+          {filteredBookings.map((booking) => (
             <Card key={booking.id} className="hover:shadow-md transition-shadow">
               <CardHeader>
                 <div className="flex justify-between items-start">
@@ -190,14 +155,56 @@ export function BookingsPage() {
 
                   {/* Actions */}
                   <div className="flex gap-2 md:justify-end">
-                    <Button variant="outline" size="sm">View Details</Button>
-                    <Button variant="outline" size="sm">Edit</Button>
+                    <Button variant="outline" size="sm">
+                      <Eye className="w-4 h-4 mr-1" />
+                      View
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => handleEdit(booking)}>
+                      <Edit className="w-4 h-4 mr-1" />
+                      Edit
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => handleDelete(booking.id)}>
+                      <Trash2 className="w-4 h-4 mr-1" />
+                      Delete
+                    </Button>
                   </div>
                 </div>
               </CardContent>
             </Card>
           ))}
         </div>
+
+        {/* Create/Edit Booking Dialog */}
+        <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>
+                {selectedBooking ? 'Edit Booking' : 'Create New Booking'}
+              </DialogTitle>
+            </DialogHeader>
+            <BookingForm
+              booking={selectedBooking || undefined}
+              onSubmit={handleFormSubmit}
+              onCancel={handleFormCancel}
+            />
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete Confirmation Dialog */}
+        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This action cannot be undone. This will permanently delete the booking.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={confirmDelete}>Delete</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </MainLayout>
   );
